@@ -4,11 +4,11 @@ import z from "zod"
 
 export const zTeam = z.object({
     id: z.string(),
-    name: z.string(),
+    name: z.string().optional(),
     createdAt: z.string().optional(),
     boardId: z.string().optional(),
     logo: z.string().optional().nullable(),
-    score: z.number().min(0),
+    score: z.number().min(0).optional(),
 
 })
 export const zBoard = z.object({

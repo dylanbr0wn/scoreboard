@@ -8,7 +8,10 @@ interface TimerProps {
 }
 
 const CustTimer = ({ board }: TimerProps) => {
-    const { setGoal, time, start, stop } = useStopWatch(board?.countDown);
+    const { setGoal, time, start, stop } = useStopWatch(
+        board?.timeSurpassed,
+        board?.countDown
+    );
 
     React.useEffect(() => {
         if (!board?.goalTime) return;

@@ -27,7 +27,7 @@ interface StopWatchProps {
  */
 
 
-export const useStopWatch = (countDown?: boolean | undefined) => {
+export const useStopWatch = ( surpassed: number |undefined, countDown?: boolean | undefined,) => {
     const [time, setTime] = React.useState(0);
     const [running, setRunning] = React.useState(false);
     const [goal, setGoal] = React.useState(1000);
@@ -62,6 +62,11 @@ export const useStopWatch = (countDown?: boolean | undefined) => {
             }, 10)
         
     };
+
+    React.useEffect(() => {
+        if(!surpassed) return
+        setTime(surpassed );
+    },[surpassed])
 
     const stop = () => {
         setRunning(false);
