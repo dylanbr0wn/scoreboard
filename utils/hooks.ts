@@ -46,7 +46,6 @@ export const useStopWatch = ( surpassed: number |undefined,startTime:string | un
     const reset = () => {
         setRunning(false);
         setTime(0);
-        
         setPercent(0);
         clearInterval(timer.current);
     };
@@ -54,14 +53,14 @@ export const useStopWatch = ( surpassed: number |undefined,startTime:string | un
     const start = () => {
         let timerStart:number;
         if(initTime > dayjs(startTime).unix()*1000 ){
-            timerStart = dayjs(startTime).unix()*1000 - (surpassed ?? time);
+            timerStart = dayjs(startTime).unix()*1000 - (surpassed ?? time); // if it has started before the page has loaded, we need to subtract the time that has already passed from the start time
         }else{
-            timerStart = Date.now() - (surpassed ?? time)
+            timerStart = Date.now() - (surpassed ?? time) ; // if it has started after the page has loaded, we need to subtract the time that has already passed from the current time
         }
         
         setRunning(true);
         setTimerStart(timerStart);
-        clearInterval(timer.current);
+        clearInterval(timer.current); // need to clear interval to prevent it from running multiple times
         timer.current = setInterval(() => {
                 setTime(Date.now() - timerStart);
             }, 100)
