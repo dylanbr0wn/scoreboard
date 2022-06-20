@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import * as React from 'react';
 
 interface StopWatchProps {
@@ -5,6 +6,10 @@ interface StopWatchProps {
     
 
 }
+
+const initTime = Date.now();
+
+
 
 /**
  * 
@@ -27,7 +32,9 @@ interface StopWatchProps {
  */
 
 
-export const useStopWatch = ( surpassed: number |undefined, countDown?: boolean | undefined,) => {
+
+
+export const useStopWatch = ( surpassed: number |undefined,startTime:string | undefined | null, countDown?: boolean | undefined) => {
     const [time, setTime] = React.useState(0);
     const [running, setRunning] = React.useState(false);
     const [goal, setGoal] = React.useState(1000);
@@ -45,21 +52,19 @@ export const useStopWatch = ( surpassed: number |undefined, countDown?: boolean 
     };
 
     const start = () => {
-        const timerStart = Date.now() - time
+        let timerStart:number;
+        if(initTime > dayjs(startTime).unix()*1000 ){
+            timerStart = dayjs(startTime).unix()*1000 - (surpassed ?? time);
+        }else{
+            timerStart = Date.now() - (surpassed ?? time)
+        }
+        
         setRunning(true);
         setTimerStart(timerStart);
+        clearInterval(timer.current);
         timer.current = setInterval(() => {
-                let percent = 0;
-                const time = Date.now() - timerStart
-                if(time <= goal ){
-                    
-                    percent = Math.floor(time / goal * 100);
-                }if(time > goal){
-                    percent = 100;
-                }
-                setPercent(percent);
                 setTime(Date.now() - timerStart);
-            }, 10)
+            }, 100)
         
     };
 
