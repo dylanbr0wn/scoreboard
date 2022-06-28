@@ -10,65 +10,105 @@ import Header from "../../components/header";
 import { useUser } from "@supabase/auth-helpers-react";
 import BoardTeam from "../../components/boardTeam";
 import CustTimer from "../../components/timer";
+import { io } from "socket.io-client";
+import { Socket } from "socket.io-client";
 
-const getSessions = async (id: string | undefined) => {
-    let { data, error, status } = await supabaseClient
-        .from("boards")
-        .select(`*, teams(id, name, score, logo)`)
-        .eq("id", id)
-        .order("name", {
-            foreignTable: "teams",
-        })
-        .single();
-    if (error && status !== 406) {
-        throw error;
+// const getBoard = async (id: string | undefined) => {
+//     let { data, error, status } = await supabaseClient
+//         .from("boards")
+//         .select(`*, teams(id, name, score, logo)`)
+//         .eq("id", id)
+//         .order("name", {
+//             foreignTable: "teams",
+//         })
+//         .single();
+//     if (error && status !== 406) {
+//         throw error;
+//     }
+//     return zBoard.parse(data);
+// };
+
+// export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
+//     const { id } = ctx.query;
+//     if (typeof id !== "string") return { props: { initBoard: {} } };
+//     const data = await getBoard(id);
+
+//     return { props: { initBoard: data } };
+// };
+
+const Board: NextPage = (
+    {
+        // initBoard,
     }
-    return zBoard.parse(data);
-};
-
-export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
-    const { id } = ctx.query;
-    if (typeof id !== "string") return { props: { sessions: [] } };
-    const data = await getSessions(id);
-
-    return { props: { initBoard: data } };
-};
-
-const Board: NextPage<{ initBoard: z.infer<typeof zBoard> }> = ({
-    initBoard,
-}) => {
+) => {
     const [board, setBoard] = React.useState<z.infer<typeof zBoard>>();
     const { query } = useRouter();
+    const socketRef = React.useRef<Socket>();
 
     const { user } = useUser();
 
-    React.useEffect(() => {
-        if (initBoard?.id) {
-            setBoard(initBoard);
-        }
-    }, [initBoard]);
+    // React.useEffect(() => {
+    //     if (initBoard?.id) {
+    //         setBoard(initBoard);
+    //     }
+    // }, [initBoard]);
 
-    React.useEffect(() => {
-        const handleRecordUpdated = (
-            record: SupabaseRealtimePayload<z.infer<typeof zBoard>>
-        ) => {
-            try {
-                const board = zBoard.parse(record.new);
-                setBoard((old) => ({ ...old, ...board }));
-            } catch (e) {
-                console.log(e);
-            }
-        };
+    const inputRef = React.useRef(null);
 
-        const mySubscription = supabaseClient
-            .from(`boards:id=eq.${query.id}`)
-            .on("UPDATE", handleRecordUpdated)
-            .subscribe();
+    // connected flag
+    const [connected, setConnected] = React.useState<boolean>(false);
 
-        return () => {
-            mySubscription.unsubscribe();
-        };
+    React.useEffect((): any => {
+        // connect to socket server
+        const socket = io(process.env.BASE_URL ?? "", {
+            path: "/api/socketio",
+            query: {
+                boardId: query.id,
+            },
+        });
+
+        // log socket connection
+        socket.on("connect", () => {
+            console.log("SOCKET CONNECTED!", socket.id);
+
+            setConnected(true);
+        });
+
+        socket.on("board", (data: any) => {
+            setBoard(data);
+        });
+
+        socket.on("update-board", (partialBoard) => {
+            setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
+        });
+
+        socketRef.current = socket;
+
+        socketRef.current.emit("get-board");
+        // socket disconnet onUnmount if exists
+        if (socket) return () => socket.disconnect();
     }, []);
+
+    // const handleRecordUpdated = (
+    //     record: SupabaseRealtimePayload<z.infer<typeof zBoard>>
+    // ) => {
+    //     try {
+    //         const board = zBoard.parse(record.new);
+    //         setBoard((old) => ({ ...old, ...board }));
+    //     } catch (e) {
+    //         console.log(e);
+    //     }
+    // };
+
+    // const mySubscription = supabaseClient
+    //     .from(`boards:id=eq.${query.id}`)
+    //     .on("UPDATE", handleRecordUpdated)
+    //     .subscribe();
+
+    // return () => {
+    //     mySubscription.unsubscribe();
+    // };
+    // }, []);
 
     // React.useEffect(() => {
     //     const handleRecordUpdated = (

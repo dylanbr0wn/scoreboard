@@ -2,17 +2,24 @@ import { useStopWatch } from "../utils/hooks";
 import { zBoard } from "../utils/types";
 import z from "zod";
 import * as React from "react";
+import { useStore } from "../utils/store";
+import { getTime } from "../utils/utils";
 
 interface TimerProps {
     board: z.infer<typeof zBoard> | undefined;
 }
 
 const CustTimer = ({ board }: TimerProps) => {
-    const { setGoal, time, start, stop } = useStopWatch(
+    const { start, stop } = useStopWatch(
         board?.timeSurpassed,
-        board?.lastTimeStateChange,
-        board?.countDown
+        board?.lastTimeStateChange
     );
+
+    const { setGoal, time, goal } = useStore((state) => ({
+        setGoal: state.setGoal,
+        time: state.time,
+        goal: state.goal,
+    }));
 
     React.useEffect(() => {
         if (!board?.goalTime) return;
@@ -34,15 +41,40 @@ const CustTimer = ({ board }: TimerProps) => {
             <div
                 className={`text-7xl font-mono font-semibold transition-colors text-center duration-1000`}
             >
-                {time / 60000 < 1 ? (
+                {getTime(time, goal, board?.countDown) / 60000 < 1 ? (
                     <div>
-                        {("0" + Math.floor((time / 1000) % 60)).slice(-2)}.
-                        {("0" + (Math.floor(time / 10) % 100)).slice(-2)}
+                        {(
+                            "0" +
+                            Math.floor(
+                                (getTime(time, goal, board?.countDown) / 1000) %
+                                    60
+                            )
+                        ).slice(-2)}
+                        .
+                        {(
+                            "0" +
+                            (Math.floor(
+                                getTime(time, goal, board?.countDown) / 10
+                            ) %
+                                100)
+                        ).slice(-2)}
                     </div>
                 ) : (
                     <div>
-                        {("0" + Math.floor(time / 60000)).slice(-2)}:
-                        {("0" + (Math.floor(time / 1000) % 60)).slice(-2)}
+                        {(
+                            "0" +
+                            Math.floor(
+                                getTime(time, goal, board?.countDown) / 60000
+                            )
+                        ).slice(-2)}
+                        :
+                        {(
+                            "0" +
+                            (Math.floor(
+                                getTime(time, goal, board?.countDown) / 1000
+                            ) %
+                                60)
+                        ).slice(-2)}
                     </div>
                 )}
             </div>

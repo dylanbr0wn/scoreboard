@@ -7,10 +7,11 @@ import { zBoard, zTeam } from "../../utils/types";
 import Header from "../../components/header";
 import { useUser } from "@supabase/auth-helpers-react";
 import * as React from "react";
-import { Minus, Pause, Play, Plus } from "react-feather";
+import { Minus, Pause, Play, Plus, RefreshCcw } from "react-feather";
 import TeamControl from "../../components/teamControl";
 import dayjs from "dayjs";
 import TimeControl from "../../components/timeControl";
+import { Socket, io } from "socket.io-client";
 
 const getBoard = async (id: string | undefined) => {
     let { data, error, status } = await supabaseClient
@@ -66,8 +67,8 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
     const [team1, setTeam1] = React.useState<z.infer<typeof zTeam>>();
     const [team2, setTeam2] = React.useState<z.infer<typeof zTeam>>();
 
-    const { user } = useUser();
-
+    const socketRef = React.useRef<Socket>();
+    const [connected, setConnected] = React.useState<boolean>();
     const { data } = useQuery(["board", id], () => getBoard(id), {
         initialData: initBoard,
         onSuccess: (data) => {
@@ -76,16 +77,58 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
             setTeam2(data.teams?.at(1));
         },
     });
+
+    const { user } = useUser();
+
+    React.useEffect((): any => {
+        // connect to socket server
+        const socket = io(process.env.BASE_URL ?? "", {
+            path: "/api/socketio",
+            query: {
+                boardId: id,
+            },
+        });
+
+        // log socket connection
+        socket.on("connect", () => {
+            console.log("SOCKET CONNECTED!", socket.id);
+            setConnected(true);
+        });
+
+        socket.on("get-board", () => {
+            console.log("respond to board request");
+            socket.emit("board", data);
+        });
+
+        // update chat on new message dispatched
+        socketRef.current = socket;
+
+        // socket disconnet onUnmount if exists
+        if (socket) return () => socket.disconnect();
+    }, []);
+
     const queryClient = useQueryClient();
 
     const mutation = useMutation(
         (value: Partial<z.infer<typeof zBoard>>) => updateBoard(value, id),
         {
-            onSuccess: (newData) => {
+            onMutate: async (newData) => {
+                await queryClient.cancelQueries(["board", id]);
+                const previousData = queryClient.getQueryData(["board", id]);
+
                 queryClient.setQueryData(["board", id], {
                     ...data,
                     ...newData,
                 });
+
+                return { previousData };
+            },
+            onError: (err, newData, context) => {
+                queryClient.setQueryData(["board", id], context?.previousData);
+                console.log(err);
+            },
+            onSettled: () => {
+                queryClient.invalidateQueries(["board", id]);
             },
         }
     );
@@ -119,7 +162,7 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                 <div className="font-thin text-sm text-gray-500 pb-1">
                                     Timer start/stop
                                 </div>
-                                <div className="flex">
+                                <div className="flex space-x-2">
                                     <button
                                         onClick={() => {
                                             if (
@@ -133,6 +176,16 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                                     lastTimeStateChange:
                                                         dayjs().toISOString(),
                                                 });
+                                                socketRef.current?.emit(
+                                                    "update-board",
+                                                    {
+                                                        isRunning: true,
+                                                        initialTimeStateChange:
+                                                            dayjs().toISOString(),
+                                                        lastTimeStateChange:
+                                                            dayjs().toISOString(),
+                                                    }
+                                                );
                                             } else {
                                                 mutation.mutate({
                                                     isRunning: true,
@@ -140,6 +193,14 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                                     lastTimeStateChange:
                                                         dayjs().toISOString(),
                                                 });
+                                                socketRef.current?.emit(
+                                                    "update-board",
+                                                    {
+                                                        isRunning: true,
+                                                        lastTimeStateChange:
+                                                            dayjs().toISOString(),
+                                                    }
+                                                );
                                             }
                                         }}
                                         disabled={data?.isRunning}
@@ -148,7 +209,7 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                         <Play className="w-8 h-8" />
                                     </button>
                                     <button
-                                        onClick={() =>
+                                        onClick={() => {
                                             mutation.mutate({
                                                 isRunning: false,
                                                 lastTimeStateChange:
@@ -160,12 +221,54 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                                             "ms"
                                                         ) ??
                                                     data?.timeSurpassed,
-                                            })
-                                        }
+                                            });
+                                            socketRef.current?.emit(
+                                                "update-board",
+                                                {
+                                                    isRunning: false,
+                                                    lastTimeStateChange:
+                                                        dayjs().toISOString(),
+                                                    timeSurpassed:
+                                                        (data?.timeSurpassed ??
+                                                            0) +
+                                                            dayjs().diff(
+                                                                data?.lastTimeStateChange,
+                                                                "ms"
+                                                            ) ??
+                                                        data?.timeSurpassed,
+                                                }
+                                            );
+                                        }}
                                         disabled={!data?.isRunning}
-                                        className="px-4 py-2 mx-2 disabled:opacity-50 bg-red-200 transition-colors duration-300 flex-grow rounded-lg hover:bg-red-300 text-red-900"
+                                        className="px-4 py-2  disabled:opacity-50 bg-red-200 transition-colors duration-300 flex-grow rounded-lg hover:bg-red-300 text-red-900"
                                     >
                                         <Pause className="w-8 h-8" />
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            mutation.mutate({
+                                                isRunning: false,
+                                                lastTimeStateChange:
+                                                    dayjs().toISOString(),
+                                                timeSurpassed: 0,
+                                            });
+                                            socketRef.current?.emit(
+                                                "update-board",
+                                                {
+                                                    isRunning: false,
+                                                    lastTimeStateChange:
+                                                        dayjs().toISOString(),
+                                                    timeSurpassed: 0,
+                                                }
+                                            );
+                                        }}
+                                        disabled={
+                                            data?.isRunning ||
+                                            !((data?.timeSurpassed ?? 0) > 0)
+                                        }
+                                        className="px-4 py-2 disabled:opacity-50 bg-yellow-200 transition-colors duration-300 flex-grow rounded-lg hover:bg-yellow-300 text-yellow-500-900"
+                                    >
+                                        <RefreshCcw className="w-8 h-8" />
                                     </button>
                                     <div className="w-full" />
                                 </div>

@@ -1,9 +1,10 @@
 import dayjs from 'dayjs';
 import * as React from 'react';
+import { useStore } from './store';
 
 interface StopWatchProps {
     countDown?: boolean | undefined;
-    
+
 
 }
 
@@ -34,48 +35,56 @@ const initTime = Date.now();
 
 
 
-export const useStopWatch = ( surpassed: number |undefined,startTime:string | undefined | null, countDown?: boolean | undefined) => {
-    const [time, setTime] = React.useState(0);
-    const [running, setRunning] = React.useState(false);
-    const [goal, setGoal] = React.useState(1000);
+export const useStopWatch = (surpassed: number | undefined, startTime: string | undefined | null) => {
+    // const [time, setTime] = React.useState(0);
+    // const [running, setRunning] = React.useState(false);
+    // const [goal, setGoal] = React.useState(1000);
     const timer = React.useRef<NodeJS.Timer>();
-    const [timerStart, setTimerStart] = React.useState(0);
 
-    const [percent, setPercent] = React.useState(0);
+    const time = React.useRef(useStore.getState().time)
+
+    const { setTime, setRunning } = useStore(state => ({
+        setTime: state.setTime,
+        setRunning: state.setRunning,
+    }))
 
     const reset = () => {
         setRunning(false);
         setTime(0);
-        setPercent(0);
         clearInterval(timer.current);
     };
 
+    React.useEffect(() => {
+        useStore.subscribe(
+            state => (time.current = state.time)
+        )
+    }, [])
+
     const start = () => {
-        let timerStart:number;
-        if(initTime > dayjs(startTime).unix()*1000 ){
-            timerStart = dayjs(startTime).unix()*1000 - (surpassed ?? time); // if it has started before the page has loaded, we need to subtract the time that has already passed from the start time
-        }else{
-            timerStart = Date.now() - (surpassed ?? time) ; // if it has started after the page has loaded, we need to subtract the time that has already passed from the current time
+        let timerStart: number;
+        if (initTime > dayjs(startTime).unix() * 1000) {
+            timerStart = dayjs(startTime).unix() * 1000 - (surpassed ?? time.current); // if it has started before the page has loaded, we need to subtract the time that has already passed from the start time
+        } else {
+            timerStart = Date.now() - (surpassed ?? time.current); // if it has started after the page has loaded, we need to subtract the time that has already passed from the current time
         }
-        
+
         setRunning(true);
-        setTimerStart(timerStart);
         clearInterval(timer.current); // need to clear interval to prevent it from running multiple times
         timer.current = setInterval(() => {
-                setTime(Date.now() - timerStart);
-            }, 100)
-        
+            setTime(Date.now() - timerStart);
+        }, 100)
+
     };
 
     React.useEffect(() => {
-        if(!surpassed) return
-        setTime(surpassed );
-    },[surpassed])
+        if (surpassed === undefined) return
+        setTime(surpassed);
+    }, [surpassed])
 
     const stop = () => {
         setRunning(false);
         clearInterval(timer.current);
     };
 
-    return { time: countDown ? goal - time : time, reset, start, stop, percent,goal,running, setGoal  };
+    return { reset, start, stop };
 }

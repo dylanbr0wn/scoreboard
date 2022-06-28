@@ -1,9 +1,11 @@
 import z from "zod"
-
+import { Server as NetServer, Socket } from "net";
+import { NextApiResponse } from "next";
+import { Server as SocketIOServer } from "socket.io";
 
 
 export const zTeam = z.object({
-    id: z.string(),
+    id: z.string().optional(),
     name: z.string().optional(),
     createdAt: z.string().optional(),
     boardId: z.string().optional(),
@@ -25,3 +27,12 @@ export const zBoard = z.object({
     lastTimeStateChange: z.string().optional().nullable(),
 });
 
+
+
+export type NextApiResponseServerIO = NextApiResponse & {
+    socket: Socket & {
+        server: NetServer & {
+            io: SocketIOServer;
+        };
+    };
+};
