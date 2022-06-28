@@ -36,11 +36,7 @@ import { Socket } from "socket.io-client";
 //     return { props: { initBoard: data } };
 // };
 
-const Board: NextPage = (
-    {
-        // initBoard,
-    }
-) => {
+const Board: NextPage = () => {
     const [board, setBoard] = React.useState<z.infer<typeof zBoard>>();
     const { query } = useRouter();
     const socketRef = React.useRef<Socket>();
@@ -59,35 +55,38 @@ const Board: NextPage = (
     const [connected, setConnected] = React.useState<boolean>(false);
 
     React.useEffect((): any => {
+        if (query?.id) {
+            if (socketRef.current) return;
+            const socket = io(process.env.BASE_URL ?? "", {
+                path: "/api/socketio",
+                query: {
+                    boardId: query.id,
+                },
+            });
+
+            // log socket connection
+            socket.on("connect", () => {
+                console.log("SOCKET CONNECTED!", socket.id);
+
+                setConnected(true);
+            });
+
+            socket.on("board", (data: any) => {
+                setBoard(data);
+            });
+
+            socket.on("update-board", (partialBoard) => {
+                setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
+            });
+
+            socketRef.current = socket;
+
+            socketRef.current.emit("get-board");
+            // socket disconnet onUnmount if exists
+            if (socket) return () => socket.disconnect();
+        }
         // connect to socket server
-        const socket = io(process.env.BASE_URL ?? "", {
-            path: "/api/socketio",
-            query: {
-                boardId: query.id,
-            },
-        });
-
-        // log socket connection
-        socket.on("connect", () => {
-            console.log("SOCKET CONNECTED!", socket.id);
-
-            setConnected(true);
-        });
-
-        socket.on("board", (data: any) => {
-            setBoard(data);
-        });
-
-        socket.on("update-board", (partialBoard) => {
-            setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
-        });
-
-        socketRef.current = socket;
-
-        socketRef.current.emit("get-board");
-        // socket disconnet onUnmount if exists
-        if (socket) return () => socket.disconnect();
-    }, []);
+    }, [query.id]);
 
     // const handleRecordUpdated = (
     //     record: SupabaseRealtimePayload<z.infer<typeof zBoard>>
