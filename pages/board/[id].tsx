@@ -10,23 +10,28 @@ import Header from "../../components/header";
 import { useUser } from "@supabase/auth-helpers-react";
 import BoardTeam from "../../components/boardTeam";
 import CustTimer from "../../components/timer";
-import { io } from "socket.io-client";
-import { Socket } from "socket.io-client";
+import Pusher, { Channel } from "pusher-js";
+// import { io } from "socket.io-client";
+// import { Socket } from "socket.io-client";
 
-// const getBoard = async (id: string | undefined) => {
-//     let { data, error, status } = await supabaseClient
-//         .from("boards")
-//         .select(`*, teams(id, name, score, logo)`)
-//         .eq("id", id)
-//         .order("name", {
-//             foreignTable: "teams",
-//         })
-//         .single();
-//     if (error && status !== 406) {
-//         throw error;
-//     }
-//     return zBoard.parse(data);
-// };
+const getBoard = async (id: string | undefined) => {
+    await fetch(`/api/board/${id}/read`, {
+        method: "POST",
+    });
+
+    // let { data, error, status } = await supabaseClient
+    //     .from("boards")
+    //     .select(`*, teams(id, name, score, logo)`)
+    //     .eq("id", id)
+    //     .order("name", {
+    //         foreignTable: "teams",
+    //     })
+    //     .single();
+    // if (error && status !== 406) {
+    //     throw error;
+    // }
+    // return zBoard.parse(data);
+};
 
 // export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
 //     const { id } = ctx.query;
@@ -39,7 +44,7 @@ import { Socket } from "socket.io-client";
 const Board: NextPage = () => {
     const [board, setBoard] = React.useState<z.infer<typeof zBoard>>();
     const { query } = useRouter();
-    const socketRef = React.useRef<Socket>();
+    const channelRef = React.useRef<Channel>();
 
     const { user } = useUser();
 
@@ -55,37 +60,62 @@ const Board: NextPage = () => {
     const [connected, setConnected] = React.useState<boolean>(false);
 
     React.useEffect((): any => {
-        if (query?.id) {
-            if (socketRef.current) return;
-            const socket = io(process.env.BASE_URL ?? "", {
-                path: "/api/socketio",
-                query: {
-                    boardId: query.id,
-                },
-            });
+        if (typeof query.id !== "string") return;
+        const pusher = new Pusher(
+            process.env.NEXT_PUBLIC_PUSHER_APP_KEY ?? "",
+            {
+                cluster: process.env.NEXT_PUBLIC_PUSHER_APP_CLUSTER ?? "",
+            }
+        );
+        const channel = pusher.subscribe(query.id);
+        setConnected(true);
 
-            // log socket connection
-            socket.on("connect", () => {
-                console.log("SOCKET CONNECTED!", socket.id);
+        channel.bind("create", (data: any) => {
+            setBoard(data);
+        });
 
-                setConnected(true);
-            });
-
-            socket.on("board", (data: any) => {
-                setBoard(data);
-            });
-
-            socket.on("update-board", (partialBoard) => {
+        channel.bind(
+            "update",
+            (partialBoard: Partial<z.infer<typeof zBoard>>) => {
                 setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
-            });
+            }
+        );
 
-            socketRef.current = socket;
+        getBoard(query.id);
 
-            socketRef.current.emit("get-board");
-            // socket disconnet onUnmount if exists
-            if (socket) return () => socket.disconnect();
-        }
-        // connect to socket server
+        channelRef.current = channel;
+        if (channel) return () => channel.disconnect();
+        //     if (query?.id) {
+        //         if (socketRef.current) return;
+        //         const socket = io(process.env.BASE_URL ?? "", {
+        //             path: "/api/socketio",
+        //             query: {
+        //                 boardId: query.id,
+        //             },
+        //         });
+
+        //         // log socket connection
+        //         socket.on("connect", () => {
+        //             console.log("SOCKET CONNECTED!", socket.id);
+
+        //             setConnected(true);
+        //         });
+
+        //         socket.on("board", (data: any) => {
+        //             setBoard(data);
+        //         });
+
+        //         socket.on("update-board", (partialBoard) => {
+        //             setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
+        //         });
+
+        //         socketRef.current = socket;
+
+        //         socketRef.current.emit("get-board");
+        //         // socket disconnet onUnmount if exists
+        //         if (socket) return () => socket.disconnect();
+        //     }
+        //     // connect to socket server
     }, [query.id]);
 
     // const handleRecordUpdated = (

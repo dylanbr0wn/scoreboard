@@ -11,7 +11,7 @@ import { Minus, Pause, Play, Plus, RefreshCcw } from "react-feather";
 import TeamControl from "../../components/teamControl";
 import dayjs from "dayjs";
 import TimeControl from "../../components/timeControl";
-import { Socket, io } from "socket.io-client";
+import Pusher, { Channel } from "pusher-js";
 
 const getBoard = async (id: string | undefined) => {
     let { data, error, status } = await supabaseClient
@@ -47,17 +47,42 @@ const updateBoard = async (
     id: string | undefined
 ) => {
     if (!id) throw new Error("no data");
-    const {
-        data: res,
-        error,
-        status,
-    } = await supabaseClient.from("boards").update(newValues).eq("id", id);
+    const [{ data: res, error, status }] = await Promise.all([
+        supabaseClient.from("boards").update(newValues).eq("id", id),
+        fetch(`/api/board/${id}/update`, {
+            method: "POST",
+            body: JSON.stringify(newValues),
+        }),
+    ]);
 
     if (error && status !== 406) {
         throw error;
     }
     if (!res) throw new Error("no res");
     return zBoard.parse(res[0]);
+};
+
+const createBoard = async (
+    newValues: Partial<z.infer<typeof zBoard>>,
+    id: string | undefined
+) => {
+    if (!id) throw new Error("no data");
+    // const {
+    //     data: res,
+    //     error,
+    //     status,
+    // } = await supabaseClient.from("boards").update(newValues).eq("id", id);
+
+    await fetch(`/api/board/${id}/update`, {
+        method: "POST",
+        body: JSON.stringify(newValues),
+    });
+
+    // if (error && status !== 406) {
+    //     throw error;
+    // }
+    // if (!res) throw new Error("no res");
+    // return zBoard.parse(res[0]);
 };
 
 const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
@@ -67,7 +92,7 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
     const [team1, setTeam1] = React.useState<z.infer<typeof zTeam>>();
     const [team2, setTeam2] = React.useState<z.infer<typeof zTeam>>();
 
-    const socketRef = React.useRef<Socket>();
+    const channelRef = React.useRef<Channel>();
     const [connected, setConnected] = React.useState<boolean>();
     const { data } = useQuery(["board", id], () => getBoard(id), {
         initialData: initBoard,
@@ -82,29 +107,24 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
 
     React.useEffect((): any => {
         // connect to socket server
-        const socket = io(process.env.BASE_URL ?? "", {
-            path: "/api/socketio",
-            query: {
-                boardId: id,
-            },
-        });
+        const pusher = new Pusher(
+            process.env.NEXT_PUBLIC_PUSHER_APP_KEY ?? "",
+            {
+                cluster: process.env.NEXT_PUBLIC_PUSHER_APP_CLUSTER ?? "",
+            }
+        );
+        const channel = pusher.subscribe(id);
+        setConnected(true);
 
-        // log socket connection
-        socket.on("connect", () => {
-            console.log("SOCKET CONNECTED!", socket.id);
-            setConnected(true);
-        });
-
-        socket.on("get-board", () => {
-            console.log("respond to board request");
-            socket.emit("board", data);
+        channel.bind("read", () => {
+            createBoard(initBoard, id);
         });
 
         // update chat on new message dispatched
-        socketRef.current = socket;
+        channelRef.current = channel;
 
         // socket disconnet onUnmount if exists
-        if (socket) return () => socket.disconnect();
+        if (channel) return () => channel.disconnect();
     }, []);
 
     const queryClient = useQueryClient();
@@ -176,16 +196,16 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                                     lastTimeStateChange:
                                                         dayjs().toISOString(),
                                                 });
-                                                socketRef.current?.emit(
-                                                    "update-board",
-                                                    {
-                                                        isRunning: true,
-                                                        initialTimeStateChange:
-                                                            dayjs().toISOString(),
-                                                        lastTimeStateChange:
-                                                            dayjs().toISOString(),
-                                                    }
-                                                );
+                                                // channelRef.current?.emit(
+                                                //     "update-board",
+                                                //     {
+                                                //         isRunning: true,
+                                                //         initialTimeStateChange:
+                                                //             dayjs().toISOString(),
+                                                //         lastTimeStateChange:
+                                                //             dayjs().toISOString(),
+                                                //     }
+                                                // );
                                             } else {
                                                 mutation.mutate({
                                                     isRunning: true,
@@ -193,14 +213,14 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                                     lastTimeStateChange:
                                                         dayjs().toISOString(),
                                                 });
-                                                socketRef.current?.emit(
-                                                    "update-board",
-                                                    {
-                                                        isRunning: true,
-                                                        lastTimeStateChange:
-                                                            dayjs().toISOString(),
-                                                    }
-                                                );
+                                                // channelRef.current?.emit(
+                                                //     "update-board",
+                                                //     {
+                                                //         isRunning: true,
+                                                //         lastTimeStateChange:
+                                                //             dayjs().toISOString(),
+                                                //     }
+                                                // );
                                             }
                                         }}
                                         disabled={data?.isRunning}
@@ -222,22 +242,22 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                                         ) ??
                                                     data?.timeSurpassed,
                                             });
-                                            socketRef.current?.emit(
-                                                "update-board",
-                                                {
-                                                    isRunning: false,
-                                                    lastTimeStateChange:
-                                                        dayjs().toISOString(),
-                                                    timeSurpassed:
-                                                        (data?.timeSurpassed ??
-                                                            0) +
-                                                            dayjs().diff(
-                                                                data?.lastTimeStateChange,
-                                                                "ms"
-                                                            ) ??
-                                                        data?.timeSurpassed,
-                                                }
-                                            );
+                                            // channelRef.current?.emit(
+                                            //     "update-board",
+                                            //     {
+                                            //         isRunning: false,
+                                            //         lastTimeStateChange:
+                                            //             dayjs().toISOString(),
+                                            //         timeSurpassed:
+                                            //             (data?.timeSurpassed ??
+                                            //                 0) +
+                                            //                 dayjs().diff(
+                                            //                     data?.lastTimeStateChange,
+                                            //                     "ms"
+                                            //                 ) ??
+                                            //             data?.timeSurpassed,
+                                            //     }
+                                            // );
                                         }}
                                         disabled={!data?.isRunning}
                                         className="px-4 py-2  disabled:opacity-50 bg-red-200 transition-colors duration-300 flex-grow rounded-lg hover:bg-red-300 text-red-900"
@@ -252,15 +272,15 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                                     dayjs().toISOString(),
                                                 timeSurpassed: 0,
                                             });
-                                            socketRef.current?.emit(
-                                                "update-board",
-                                                {
-                                                    isRunning: false,
-                                                    lastTimeStateChange:
-                                                        dayjs().toISOString(),
-                                                    timeSurpassed: 0,
-                                                }
-                                            );
+                                            // channelRef.current?.emit(
+                                            //     "update-board",
+                                            //     {
+                                            //         isRunning: false,
+                                            //         lastTimeStateChange:
+                                            //             dayjs().toISOString(),
+                                            //         timeSurpassed: 0,
+                                            //     }
+                                            // );
                                         }}
                                         disabled={
                                             data?.isRunning ||
