@@ -11,35 +11,12 @@ import { useUser } from "@supabase/auth-helpers-react";
 import BoardTeam from "../../components/boardTeam";
 import CustTimer from "../../components/timer";
 import Pusher, { Channel } from "pusher-js";
-// import { io } from "socket.io-client";
-// import { Socket } from "socket.io-client";
 
 const getBoard = async (id: string | undefined) => {
     await fetch(`/api/board/${id}/read`, {
         method: "POST",
     });
-
-    // let { data, error, status } = await supabaseClient
-    //     .from("boards")
-    //     .select(`*, teams(id, name, score, logo)`)
-    //     .eq("id", id)
-    //     .order("name", {
-    //         foreignTable: "teams",
-    //     })
-    //     .single();
-    // if (error && status !== 406) {
-    //     throw error;
-    // }
-    // return zBoard.parse(data);
 };
-
-// export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
-//     const { id } = ctx.query;
-//     if (typeof id !== "string") return { props: { initBoard: {} } };
-//     const data = await getBoard(id);
-
-//     return { props: { initBoard: data } };
-// };
 
 const Board: NextPage = () => {
     const [board, setBoard] = React.useState<z.infer<typeof zBoard>>();
@@ -47,12 +24,6 @@ const Board: NextPage = () => {
     const channelRef = React.useRef<Channel>();
 
     const { user } = useUser();
-
-    // React.useEffect(() => {
-    //     if (initBoard?.id) {
-    //         setBoard(initBoard);
-    //     }
-    // }, [initBoard]);
 
     const inputRef = React.useRef(null);
 
@@ -85,81 +56,7 @@ const Board: NextPage = () => {
 
         channelRef.current = channel;
         if (channel) return () => channel.disconnect();
-        //     if (query?.id) {
-        //         if (socketRef.current) return;
-        //         const socket = io(process.env.BASE_URL ?? "", {
-        //             path: "/api/socketio",
-        //             query: {
-        //                 boardId: query.id,
-        //             },
-        //         });
-
-        //         // log socket connection
-        //         socket.on("connect", () => {
-        //             console.log("SOCKET CONNECTED!", socket.id);
-
-        //             setConnected(true);
-        //         });
-
-        //         socket.on("board", (data: any) => {
-        //             setBoard(data);
-        //         });
-
-        //         socket.on("update-board", (partialBoard) => {
-        //             setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
-        //         });
-
-        //         socketRef.current = socket;
-
-        //         socketRef.current.emit("get-board");
-        //         // socket disconnet onUnmount if exists
-        //         if (socket) return () => socket.disconnect();
-        //     }
-        //     // connect to socket server
     }, [query.id]);
-
-    // const handleRecordUpdated = (
-    //     record: SupabaseRealtimePayload<z.infer<typeof zBoard>>
-    // ) => {
-    //     try {
-    //         const board = zBoard.parse(record.new);
-    //         setBoard((old) => ({ ...old, ...board }));
-    //     } catch (e) {
-    //         console.log(e);
-    //     }
-    // };
-
-    // const mySubscription = supabaseClient
-    //     .from(`boards:id=eq.${query.id}`)
-    //     .on("UPDATE", handleRecordUpdated)
-    //     .subscribe();
-
-    // return () => {
-    //     mySubscription.unsubscribe();
-    // };
-    // }, []);
-
-    // React.useEffect(() => {
-    //     const handleRecordUpdated = (
-    //         record: SupabaseRealtimePayload<z.infer<typeof zTeam>>
-    //     ) => {
-    //         try {
-    //             const team2 = zTeam.parse(record.new);
-    //             setTeam2(team2);
-    //         } catch (e) {
-    //             console.log(e);
-    //         }
-    //     };
-
-    //     const mySubscription = supabaseClient
-    //         .from(`teams:id=eq.${board?.teams?.at(1)?.id}`)
-    //         .on("UPDATE", handleRecordUpdated)
-    //         .subscribe();
-
-    //     return () => {
-    //         mySubscription.unsubscribe();
-    //     };
-    // }, []);
 
     if (!board?.isOpen) return <div>Session is closed</div>;
 
