@@ -12,6 +12,12 @@ import TeamControl from "../../components/teamControl";
 import dayjs from "dayjs";
 import TimeControl from "../../components/timeControl";
 import Pusher, { Channel } from "pusher-js";
+import type { AppRouter } from "../api/trpc/[trpc]";
+import { createTRPCClient } from "@trpc/client";
+
+const client = createTRPCClient<AppRouter>({
+    url: "/api/trpc",
+});
 
 const getBoard = async (id: string | undefined) => {
     let { data, error, status } = await supabaseClient
@@ -49,10 +55,7 @@ const updateBoard = async (
     if (!id) throw new Error("no data");
     const [{ data: res, error, status }] = await Promise.all([
         supabaseClient.from("boards").update(newValues).eq("id", id),
-        fetch(`/api/board/${id}/update`, {
-            method: "POST",
-            body: JSON.stringify(newValues),
-        }),
+        client.mutation("board.update", { id, data: newValues }),
     ]);
 
     if (error && status !== 406) {
@@ -63,7 +66,7 @@ const updateBoard = async (
 };
 
 const createBoard = async (
-    newValues: Partial<z.infer<typeof zBoard>>,
+    newValues: z.infer<typeof zBoard>,
     id: string | undefined
 ) => {
     if (!id) throw new Error("no data");
@@ -73,10 +76,7 @@ const createBoard = async (
     //     status,
     // } = await supabaseClient.from("boards").update(newValues).eq("id", id);
 
-    await fetch(`/api/board/${id}/update`, {
-        method: "POST",
-        body: JSON.stringify(newValues),
-    });
+    await client.mutation("board.create", { ...newValues });
 
     // if (error && status !== 406) {
     //     throw error;

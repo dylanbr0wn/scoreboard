@@ -12,11 +12,15 @@ import BoardTeam from "../../components/boardTeam";
 import CustTimer from "../../components/timer";
 import Pusher, { Channel } from "pusher-js";
 
-const getBoard = async (id: string | undefined) => {
-    await fetch(`/api/board/${id}/read`, {
-        method: "POST",
-    });
-};
+import type { AppRouter } from "../api/trpc/[trpc]";
+import { createTRPCClient } from "@trpc/client";
+
+const client = createTRPCClient<AppRouter>({
+    url: "/api/trpc",
+});
+
+const getBoard = async (id: string) =>
+    await client.mutation("board.read", { id });
 
 const Board: NextPage = () => {
     const [board, setBoard] = React.useState<z.infer<typeof zBoard>>();
@@ -51,7 +55,6 @@ const Board: NextPage = () => {
                 setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
             }
         );
-
         getBoard(query.id);
 
         channelRef.current = channel;
