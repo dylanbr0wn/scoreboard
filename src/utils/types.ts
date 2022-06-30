@@ -1,7 +1,4 @@
-import z from "zod"
-
-
-
+import { z } from 'zod';
 
 export const zTeam = z.object({
     id: z.string().optional(),
@@ -12,6 +9,8 @@ export const zTeam = z.object({
     score: z.number().min(0).optional(),
 
 })
+
+export type Team = z.infer<typeof zTeam>;
 export const zBoard = z.object({
     id: z.string(),
     isOpen: z.boolean(),
@@ -24,5 +23,6 @@ export const zBoard = z.object({
     countDown: z.boolean().optional(),
     initialTimeStateChange: z.string().optional().nullable(),
     lastTimeStateChange: z.string().optional().nullable(),
+    userId: z.string().optional(),
 });
-
+export type Board = z.infer<typeof zBoard>;

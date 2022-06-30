@@ -4,7 +4,7 @@ import {
     User,
     withPageAuth,
 } from "@supabase/auth-helpers-nextjs";
-import type { NextPage } from "next";
+import type { GetServerSidePropsContext, NextPage } from "next";
 import Head from "next/head";
 import Image from "next/image";
 import { useQuery } from "react-query";
@@ -14,62 +14,42 @@ import { useRouter } from "next/router";
 import * as React from "react";
 import { Transition, Dialog, Popover } from "@headlessui/react";
 import { ChevronDown, Maximize, Minimize, Plus, X } from "react-feather";
-import { zBoard } from "../utils/types";
+
 import dayjs from "dayjs";
 import Link from "next/link";
 import Modal from "../components/modal";
 import CustPopover from "../components/popover";
+import { zBoard } from "../utils/types";
+import { trpc } from "../server/trpc";
 
-const getBoards = async (userId: string) => {
-    const { data, error, status } = await supabaseClient
-        .from("boards")
-        .select("*")
-        .eq("userId", userId);
+// export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
+//     const { user } = await getUser(ctx);
+//     if (!user)
+//         return {
+//             redirect: {
+//                 destination: "/login",
+//                 permanent: false,
+//             },
+//         };
+//     const data = await getBoards(user.id);
 
-    if (error && status !== 406) {
-        throw error;
-    }
+//     return {
+//         props: {
+//             user,
+//             boards: data,
+//         },
+//     };
+// };
 
-    return zBoard.array().parse(data);
-};
-
-export const getServerSideProps = withPageAuth({
-    redirectTo: "/login",
-    getServerSideProps: async (ctx) => {
-        const { user } = await getUser(ctx);
-        if (!user)
-            return {
-                redirect: {
-                    destination: "/login",
-                    permanent: false,
-                },
-            };
-        const data = await getBoards(user.id);
-
-        return {
-            props: {
-                user,
-                boards: data,
-            },
-        };
-    },
-});
-
-const Home: NextPage<{ user: User; boards: z.infer<typeof zBoard>[] }> = ({
-    user,
-    boards,
-}) => {
+const Home: NextPage = () => {
     const [selected, setSelected] = React.useState<z.infer<typeof zBoard>>();
     const [open, setOpen] = React.useState(false);
 
-    const { data, error, isLoading } = useQuery(
-        ["boards", user.id],
-        () => getBoards(user.id),
-        {
-            onError: (err) => console.log(err),
-            initialData: boards,
-        }
-    );
+    const { data, error, isLoading } = trpc.useQuery(["boards.read"], {
+        onSuccess: (data) => {
+            console.log(data);
+        },
+    });
 
     return (
         <div className="p-0">
@@ -81,7 +61,7 @@ const Home: NextPage<{ user: User; boards: z.infer<typeof zBoard>[] }> = ({
                 />
                 <link rel="icon" href="/favicon.ico" />
             </Head>
-            <Header user={user} />
+            <Header />
             <main className="mt-24 max-w-3xl mx-auto">
                 <div className="flex flex-col w-full">
                     <div className="font-extrabold text-3xl my-8">

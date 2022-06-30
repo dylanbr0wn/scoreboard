@@ -33,7 +33,7 @@ const zTimerInputs = z
 const TimeControl = ({
     board,
 }: {
-    board: z.infer<typeof zBoard> | undefined;
+    board: z.infer<typeof zBoard> | undefined | null;
 }) => {
     // const [hours, setHours] = React.useState(0);
     // const [minutes, setMinutes] = React.useState(0);

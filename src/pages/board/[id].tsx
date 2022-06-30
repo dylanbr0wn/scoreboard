@@ -2,34 +2,25 @@ import { GetServerSideProps, GetServerSidePropsContext, NextPage } from "next";
 import z from "zod";
 import * as React from "react";
 import { useRouter } from "next/router";
-import { SupabaseRealtimePayload } from "@supabase/supabase-js";
-import { supabaseClient, withPageAuth } from "@supabase/auth-helpers-nextjs";
-import { zBoard, zTeam } from "../../utils/types";
+
 import Image from "next/image";
 import Header from "../../components/header";
-import { useUser } from "@supabase/auth-helpers-react";
 import BoardTeam from "../../components/boardTeam";
 import CustTimer from "../../components/timer";
 import Pusher, { Channel } from "pusher-js";
 
-import type { AppRouter } from "../api/trpc/[trpc]";
-import { createTRPCClient } from "@trpc/client";
+import { Board, zBoard } from "../../utils/types";
+import { trpc } from "../../server/trpc";
 
-const client = createTRPCClient<AppRouter>({
-    url: "/api/trpc",
-});
-
-const getBoard = async (id: string) =>
-    await client.mutation("board.read", { id });
-
-const Board: NextPage = () => {
-    const [board, setBoard] = React.useState<z.infer<typeof zBoard>>();
+const Board: NextPage<{ id: string }> = ({ id }) => {
+    const [board, setBoard] = React.useState<Board>();
     const { query } = useRouter();
     const channelRef = React.useRef<Channel>();
-
-    const { user } = useUser();
-
-    const inputRef = React.useRef(null);
+    const { data } = trpc.useQuery(["board.read", { id }], {
+        onSuccess: (data) => {
+            if (data.board) setBoard(data?.board);
+        },
+    });
 
     // connected flag
     const [connected, setConnected] = React.useState<boolean>(false);
@@ -45,17 +36,12 @@ const Board: NextPage = () => {
         const channel = pusher.subscribe(query.id);
         setConnected(true);
 
-        channel.bind("create", (data: any) => {
-            setBoard(data);
-        });
-
         channel.bind(
             "update",
             (partialBoard: Partial<z.infer<typeof zBoard>>) => {
                 setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
             }
         );
-        getBoard(query.id);
 
         channelRef.current = channel;
         if (channel) return () => channel.disconnect();
@@ -65,7 +51,7 @@ const Board: NextPage = () => {
 
     return (
         <div className="p-0">
-            {query?.size === "windowed" && <Header user={user} />}
+            {query?.size === "windowed" && <Header />}
 
             <main className="mt-24 max-w-3xl mx-auto">
                 <div className="flex">
@@ -77,4 +63,16 @@ const Board: NextPage = () => {
         </div>
     );
 };
-export default Board;
+
+const BoardWrapper = () => {
+    const { query } = useRouter();
+    const { id } = query;
+
+    if (!id || typeof id !== "string") {
+        return <div>No ID</div>;
+    }
+
+    return <Board id={id} />;
+};
+
+export default BoardWrapper;

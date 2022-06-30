@@ -4,7 +4,7 @@ import { Button } from "@supabase/ui";
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-const Header = ({ user }: { user: User | null }) => {
+const Header = () => {
     const router = useRouter();
     return (
         <header className="w-screen fixed inset-0 h-16">
@@ -16,17 +16,7 @@ const Header = ({ user }: { user: User | null }) => {
                 </div>
                 <div className="my-auto mx-2">Random</div>
                 <div className="my-auto mx-2">Links</div>
-                <div className="w-full"></div>
-                <div className="my-auto mx-2">{user?.email}</div>
-                <Button
-                    block
-                    onClick={async () => {
-                        await supabaseClient.auth.signOut();
-                        router.push("/login");
-                    }}
-                >
-                    Sign out
-                </Button>
+                <div className="flex-grow"></div>
             </div>
         </header>
     );

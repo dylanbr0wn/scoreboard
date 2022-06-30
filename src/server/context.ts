@@ -8,10 +8,7 @@ export async function createContext(opts?: trpcNext.CreateNextContextOptions) {
     // Will be available as `ctx` in all your resolvers
 
 
-
-    return {
-
-    };
+    return { token: opts?.req.cookies["scoreboard-token"], req: opts?.req };
 }
 type Context = trpc.inferAsyncReturnType<typeof createContext>;
 

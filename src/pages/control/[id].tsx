@@ -1,11 +1,8 @@
 import { GetServerSidePropsContext, NextPage } from "next";
 import { useRouter } from "next/router";
 import z from "zod";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { supabaseClient, withPageAuth } from "@supabase/auth-helpers-nextjs";
-import { zBoard, zTeam } from "../../utils/types";
+
 import Header from "../../components/header";
-import { useUser } from "@supabase/auth-helpers-react";
 import * as React from "react";
 import { Minus, Pause, Play, Plus, RefreshCcw } from "react-feather";
 import TeamControl from "../../components/teamControl";
@@ -14,96 +11,27 @@ import TimeControl from "../../components/timeControl";
 import Pusher, { Channel } from "pusher-js";
 import type { AppRouter } from "../api/trpc/[trpc]";
 import { createTRPCClient } from "@trpc/client";
+import superjson from "superjson";
+import { zBoard, zTeam } from "../../utils/types";
+import { trpc } from "../../server/trpc";
 
-const client = createTRPCClient<AppRouter>({
-    url: "/api/trpc",
-});
-
-const getBoard = async (id: string | undefined) => {
-    let { data, error, status } = await supabaseClient
-        .from("boards")
-        .select(`*, teams(id)`)
-        .eq("id", id)
-        .order("name", {
-            foreignTable: "teams",
-        })
-        .single();
-
-    if (error && status !== 406) {
-        throw error;
-    }
-    // return data;
-    return zBoard.parse(data);
-};
-
-export const getServerSideProps = withPageAuth({
-    authRequired: true,
-    redirectTo: "/login",
-    getServerSideProps: async (ctx: GetServerSidePropsContext) => {
-        const { id } = ctx.query;
-        if (typeof id !== "string") return { props: { initBoard: {} } };
-
-        const data = await getBoard(id);
-        return { props: { initBoard: data, id } };
-    },
-});
-
-const updateBoard = async (
-    newValues: Partial<z.infer<typeof zBoard>>,
-    id: string | undefined
-) => {
-    if (!id) throw new Error("no data");
-    const [{ data: res, error, status }] = await Promise.all([
-        supabaseClient.from("boards").update(newValues).eq("id", id),
-        client.mutation("board.update", { id, data: newValues }),
-    ]);
-
-    if (error && status !== 406) {
-        throw error;
-    }
-    if (!res) throw new Error("no res");
-    return zBoard.parse(res[0]);
-};
-
-const createBoard = async (
-    newValues: z.infer<typeof zBoard>,
-    id: string | undefined
-) => {
-    if (!id) throw new Error("no data");
-    // const {
-    //     data: res,
-    //     error,
-    //     status,
-    // } = await supabaseClient.from("boards").update(newValues).eq("id", id);
-
-    await client.mutation("board.create", { ...newValues });
-
-    // if (error && status !== 406) {
-    //     throw error;
-    // }
-    // if (!res) throw new Error("no res");
-    // return zBoard.parse(res[0]);
-};
-
-const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
-    initBoard,
-    id,
-}) => {
+const Control: NextPage<{ id: string }> = ({ id }) => {
     const [team1, setTeam1] = React.useState<z.infer<typeof zTeam>>();
     const [team2, setTeam2] = React.useState<z.infer<typeof zTeam>>();
 
+    const utils = trpc.useContext();
+
+    const router = useRouter();
+
     const channelRef = React.useRef<Channel>();
     const [connected, setConnected] = React.useState<boolean>();
-    const { data } = useQuery(["board", id], () => getBoard(id), {
-        initialData: initBoard,
+    const { data } = trpc.useQuery(["board.read", { id }], {
         onSuccess: (data) => {
-            console.log(data);
-            setTeam1(data.teams?.at(0));
-            setTeam2(data.teams?.at(1));
+            if (!data.isOwner) router.replace(`/board/${id}`);
+            setTeam1(data?.board?.teams?.at(0));
+            setTeam2(data?.board?.teams?.at(1));
         },
     });
-
-    const { user } = useUser();
 
     React.useEffect((): any => {
         // connect to socket server
@@ -116,10 +44,6 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
         const channel = pusher.subscribe(id);
         setConnected(true);
 
-        channel.bind("read", () => {
-            createBoard(initBoard, id);
-        });
-
         // update chat on new message dispatched
         channelRef.current = channel;
 
@@ -127,35 +51,34 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
         if (channel) return () => channel.disconnect();
     }, []);
 
-    const queryClient = useQueryClient();
+    const mutation = trpc.useMutation(["board.update"], {
+        onMutate: async (newData) => {
+            if (!data) return;
+            utils.cancelQuery(["board.read", { id }]);
+            const previousData = utils.client.query("board.read", { id });
 
-    const mutation = useMutation(
-        (value: Partial<z.infer<typeof zBoard>>) => updateBoard(value, id),
-        {
-            onMutate: async (newData) => {
-                await queryClient.cancelQueries(["board", id]);
-                const previousData = queryClient.getQueryData(["board", id]);
+            utils.setQueryData(["board.read", { id }], {
+                isOwner: data?.isOwner,
+                board: zBoard.parse({ ...data.board, ...newData }),
+            });
 
-                queryClient.setQueryData(["board", id], {
-                    ...data,
-                    ...newData,
-                });
-
-                return { previousData };
-            },
-            onError: (err, newData, context) => {
-                queryClient.setQueryData(["board", id], context?.previousData);
-                console.log(err);
-            },
-            onSettled: () => {
-                queryClient.invalidateQueries(["board", id]);
-            },
-        }
-    );
+            return { previousData };
+        },
+        onError: (err, newData, context) => {
+            utils.setQueryData(["board.read", { id }], {
+                isOwner: data?.isOwner!,
+                board: zBoard.parse(context?.previousData),
+            });
+            console.log(err);
+        },
+        onSettled: () => {
+            utils.invalidateQueries(["board.read", { id }]);
+        },
+    });
 
     return (
         <div>
-            <Header user={user} />
+            <Header />
             <div className="max-w-3xl mt-24 mx-auto">
                 <div className="flex w-full justify-between divide-gray-200">
                     <TeamControl team={team1} />
@@ -171,12 +94,12 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                             Board
                         </div>
                         <div className="text-3xl font-bold my-auto">
-                            {data?.name}
+                            {data?.board?.name}
                         </div>
                         <div className="text-sm text-gray-600 pt-10 font-light ">
                             Timer
                         </div>
-                        <TimeControl board={data} />
+                        <TimeControl board={data?.board} />
                         <div className="flex pt-4 justify-between w-full">
                             <div className="flex flex-col">
                                 <div className="font-thin text-sm text-gray-500 pb-1">
@@ -186,44 +109,33 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                     <button
                                         onClick={() => {
                                             if (
-                                                data?.initialTimeStateChange ===
+                                                data?.board
+                                                    ?.initialTimeStateChange ===
                                                 null
                                             ) {
                                                 mutation.mutate({
-                                                    isRunning: true,
-                                                    initialTimeStateChange:
-                                                        dayjs().toISOString(),
-                                                    lastTimeStateChange:
-                                                        dayjs().toISOString(),
+                                                    id,
+                                                    data: {
+                                                        isRunning: true,
+                                                        initialTimeStateChange:
+                                                            dayjs().toISOString(),
+                                                        lastTimeStateChange:
+                                                            dayjs().toISOString(),
+                                                    },
                                                 });
-                                                // channelRef.current?.emit(
-                                                //     "update-board",
-                                                //     {
-                                                //         isRunning: true,
-                                                //         initialTimeStateChange:
-                                                //             dayjs().toISOString(),
-                                                //         lastTimeStateChange:
-                                                //             dayjs().toISOString(),
-                                                //     }
-                                                // );
                                             } else {
                                                 mutation.mutate({
-                                                    isRunning: true,
+                                                    id,
+                                                    data: {
+                                                        isRunning: true,
 
-                                                    lastTimeStateChange:
-                                                        dayjs().toISOString(),
+                                                        lastTimeStateChange:
+                                                            dayjs().toISOString(),
+                                                    },
                                                 });
-                                                // channelRef.current?.emit(
-                                                //     "update-board",
-                                                //     {
-                                                //         isRunning: true,
-                                                //         lastTimeStateChange:
-                                                //             dayjs().toISOString(),
-                                                //     }
-                                                // );
                                             }
                                         }}
-                                        disabled={data?.isRunning}
+                                        disabled={data?.board?.isRunning}
                                         className="px-4 disabled:opacity-50 py-2 bg-teal-200 transition-colors duration-300 flex-grow rounded-lg hover:bg-teal-300 text-teal-900"
                                     >
                                         <Play className="w-8 h-8" />
@@ -231,16 +143,23 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                     <button
                                         onClick={() => {
                                             mutation.mutate({
-                                                isRunning: false,
-                                                lastTimeStateChange:
-                                                    dayjs().toISOString(),
-                                                timeSurpassed:
-                                                    (data?.timeSurpassed ?? 0) +
-                                                        dayjs().diff(
-                                                            data?.lastTimeStateChange,
-                                                            "ms"
-                                                        ) ??
-                                                    data?.timeSurpassed,
+                                                id,
+                                                data: {
+                                                    isRunning: false,
+                                                    lastTimeStateChange:
+                                                        dayjs().toISOString(),
+                                                    timeSurpassed:
+                                                        (data?.board
+                                                            ?.timeSurpassed ??
+                                                            0) +
+                                                            dayjs().diff(
+                                                                data?.board
+                                                                    ?.lastTimeStateChange,
+                                                                "ms"
+                                                            ) ??
+                                                        data?.board
+                                                            ?.timeSurpassed,
+                                                },
                                             });
                                             // channelRef.current?.emit(
                                             //     "update-board",
@@ -259,7 +178,7 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                             //     }
                                             // );
                                         }}
-                                        disabled={!data?.isRunning}
+                                        disabled={!data?.board?.isRunning}
                                         className="px-4 py-2  disabled:opacity-50 bg-red-200 transition-colors duration-300 flex-grow rounded-lg hover:bg-red-300 text-red-900"
                                     >
                                         <Pause className="w-8 h-8" />
@@ -267,10 +186,13 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                     <button
                                         onClick={() => {
                                             mutation.mutate({
-                                                isRunning: false,
-                                                lastTimeStateChange:
-                                                    dayjs().toISOString(),
-                                                timeSurpassed: 0,
+                                                id,
+                                                data: {
+                                                    isRunning: false,
+                                                    lastTimeStateChange:
+                                                        dayjs().toISOString(),
+                                                    timeSurpassed: 0,
+                                                },
                                             });
                                             // channelRef.current?.emit(
                                             //     "update-board",
@@ -283,8 +205,11 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                             // );
                                         }}
                                         disabled={
-                                            data?.isRunning ||
-                                            !((data?.timeSurpassed ?? 0) > 0)
+                                            data?.board?.isRunning ||
+                                            !(
+                                                (data?.board?.timeSurpassed ??
+                                                    0) > 0
+                                            )
                                         }
                                         className="px-4 py-2 disabled:opacity-50 bg-yellow-200 transition-colors duration-300 flex-grow rounded-lg hover:bg-yellow-300 text-yellow-500-900"
                                     >
@@ -298,9 +223,10 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                     Game started at
                                 </div>
                                 <div className="text-xl my-auto">
-                                    {data?.initialTimeStateChange
+                                    {data?.board?.initialTimeStateChange
                                         ? dayjs(
-                                              data?.initialTimeStateChange
+                                              data?.board
+                                                  ?.initialTimeStateChange
                                           ).format("DD/MM/YYYY HH:mm:ss")
                                         : "Not yet started"}
                                 </div>
@@ -310,9 +236,9 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
                                     Last time update
                                 </div>
                                 <div className="text-xl my-auto">
-                                    {data?.lastTimeStateChange
+                                    {data?.board?.lastTimeStateChange
                                         ? dayjs(
-                                              data?.lastTimeStateChange
+                                              data?.board?.lastTimeStateChange
                                           ).format("DD/MM/YYYY HH:mm:ss")
                                         : "Not yet started"}
                                 </div>
@@ -324,4 +250,15 @@ const Control: NextPage<{ initBoard: z.infer<typeof zBoard>; id: string }> = ({
         </div>
     );
 };
-export default Control;
+const ControlWrapper = () => {
+    const { query } = useRouter();
+    const { id } = query;
+
+    if (!id || typeof id !== "string") {
+        return <div>No ID</div>;
+    }
+
+    return <Control id={id} />;
+};
+
+export default ControlWrapper;

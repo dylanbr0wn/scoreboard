@@ -1,19 +1,49 @@
 import "../styles/globals.css";
-import type { AppProps } from "next/app";
-import { QueryClient, QueryClientProvider } from "react-query";
 import * as React from "react";
-import { UserProvider } from "@supabase/auth-helpers-react";
-import { supabaseClient } from "@supabase/auth-helpers-nextjs";
+import { withTRPC } from "@trpc/next";
+import { AppType } from "next/dist/shared/lib/utils";
+import type { AppRouter } from "./api/trpc/[trpc]";
+import superjson from "superjson";
+import "../styles/globals.css";
 
-function MyApp({ Component, pageProps }: AppProps) {
-    const [queryClient] = React.useState(() => new QueryClient());
-    return (
-        <QueryClientProvider client={queryClient}>
-            <UserProvider supabaseClient={supabaseClient}>
-                <Component {...pageProps} />
-            </UserProvider>
-        </QueryClientProvider>
-    );
+const MyApp: AppType = ({ Component, pageProps }) => {
+    return <Component {...pageProps} />;
+};
+
+function getBaseUrl() {
+    if (typeof window !== "undefined") {
+        return "";
+    }
+    if (process.browser) return ""; // Browser should use current path
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`; // SSR should use vercel url
+
+    return `http://localhost:${process.env.PORT ?? 3000}`; // dev SSR should use localhost
 }
 
-export default MyApp;
+export default withTRPC<AppRouter>({
+    config({ ctx }) {
+        /**
+         * If you want to use SSR, you need to use the server's full URL
+         * @link https://trpc.io/docs/ssr
+         */
+        const url = `${getBaseUrl()}/api/trpc`;
+
+        return {
+            headers() {
+                return {
+                    cookie: ctx?.req?.headers.cookie,
+                };
+            },
+            url,
+            transformer: superjson,
+            /**
+             * @link https://react-query.tanstack.com/reference/QueryClient
+             */
+            // queryClientConfig: { defaultOptions: { queries: { staleTime: 60 } } },
+        };
+    },
+    /**
+     * @link https://trpc.io/docs/ssr
+     */
+    ssr: true,
+})(MyApp);
