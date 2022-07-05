@@ -2,10 +2,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Minus, Plus } from "react-feather";
 import { SubmitHandler, useForm } from "react-hook-form";
 import z from "zod";
-import { zTeam } from "../utils/types";
+import { zTeam } from "../utils/types/types";
 import * as React from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { supabaseClient } from "@supabase/auth-helpers-nextjs";
+import { useQueryClient } from "react-query";
+import { trpc } from "../utils/trpc";
 
 const zTeamScore = z
     .object({
@@ -15,38 +15,9 @@ const zTeamScore = z
     })
     .required();
 
-const getTeam = async (id: string | undefined) => {
-    if (!id) return undefined;
-    let { data, error, status } = await supabaseClient
-        .from("teams")
-        .select(`*`)
-        .eq("id", id)
-        .single();
-    if (error && status !== 406) {
-        throw error;
-    }
-    return zTeam.parse(data);
-};
-
-const updateTeam = async (id: string | undefined, score: number) => {
-    if (!id) throw new Error("no id");
-    const { data, error, status } = await supabaseClient
-        .from("teams")
-        .update({ score })
-        .eq("id", id);
-    if (error && status !== 406) {
-        throw error;
-    }
-    if (!data) throw new Error("no data");
-    return zTeam.parse(data[0]);
-};
-
 const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
-    const { data } = useQuery(["team", team?.id], () => getTeam(team?.id), {
-        onSuccess: (data) => {
-            setValue("score", data?.score ?? 0);
-        },
-    });
+    const { data } = trpc.useQuery(["team.read", { id: team?.id ?? "" }]);
+
     const queryClient = useQueryClient();
 
     const {
@@ -69,7 +40,10 @@ const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
     const onSubmit: SubmitHandler<z.infer<typeof zTeamScore>> = async (
         formData
     ) => {
-        await mutation.mutateAsync(formData.score);
+        await mutation.mutateAsync({
+            id: team?.id ?? "",
+            data: { score: formData.score },
+        });
         reset(
             { score: formData.score },
             {
@@ -80,17 +54,14 @@ const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
 
     React.useEffect(() => {
         if (!team?.score) return;
-        setValue("score", team.score);
+        setValue("score", Number(team.score));
     }, [team?.score]);
 
-    const mutation = useMutation(
-        (score: number) => updateTeam(team?.id, score),
-        {
-            onSuccess: (newData) => {
-                queryClient.setQueryData(["sessions", team?.id], newData);
-            },
-        }
-    );
+    const mutation = trpc.useMutation(["team.update"], {
+        onSuccess: (newData) => {
+            queryClient.setQueryData(["sessions", team?.id], newData);
+        },
+    });
 
     return (
         <>

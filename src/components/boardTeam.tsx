@@ -1,58 +1,54 @@
 import { SupabaseRealtimePayload } from "@supabase/supabase-js";
 import Image from "next/image";
 import z from "zod";
-import { zTeam } from "../utils/types";
+import { Board, Team, zTeam } from "../utils/types/types";
 import * as React from "react";
-import { supabaseClient } from "@supabase/auth-helpers-nextjs";
 import { useQuery, useQueryClient } from "react-query";
+import { trpc } from "../utils/trpc";
+import Pusher, { Channel } from "pusher-js";
 
+import superjson from "superjson";
 interface BoardTeamProps {
     id: string | undefined;
     abreviation?: string | undefined;
     hideLogo?: boolean | undefined;
 }
 
-const getTeam = async (id: string | undefined) => {
-    if (!id) return undefined;
-    let { data, error, status } = await supabaseClient
-        .from("teams")
-        .select(`*`)
-        .eq("id", id)
-        .single();
-    if (error && status !== 406) {
-        throw error;
-    }
-    return zTeam.parse(data);
-};
-
 const BoardTeam = ({ id, abreviation, hideLogo }: BoardTeamProps) => {
     // const [team, setTeam] = React.useState<z.infer<typeof zTeam>>();
 
-    const { data } = useQuery(["team", id], () => getTeam(id));
-    const queryClient = useQueryClient();
+    const channelRef = React.useRef<Channel>();
+    const utils = trpc.useContext();
+    // const [team, setTeam] = React.useState<Team>();
 
-    React.useEffect(() => {
-        const handleRecordUpdated = (
-            record: SupabaseRealtimePayload<z.infer<typeof zTeam>>
-        ) => {
-            console.log("herererer");
-            try {
-                const team = zTeam.parse(record.new);
-                queryClient.setQueryData(["team", id], team);
-            } catch (e) {
-                console.log(e);
+    const { data } = trpc.useQuery(["team.read", { id: id ?? "" }], {
+        // onSuccess: (data) => {
+        //     setTeam(data);
+        // },
+    });
+
+    React.useEffect((): any => {
+        if (typeof id !== "string") return;
+        const pusher = new Pusher(
+            process.env.NEXT_PUBLIC_PUSHER_APP_KEY ?? "",
+            {
+                cluster: process.env.NEXT_PUBLIC_PUSHER_APP_CLUSTER ?? "",
             }
-        };
+        );
+        const channel = pusher.subscribe(id);
 
-        const mySubscription = supabaseClient
-            .from(`teams:id=eq.${id}`)
-            .on("UPDATE", handleRecordUpdated)
-            .subscribe();
+        channel.bind("team.update", (partialBoard: any) => {
+            const newTeam = superjson.deserialize<Partial<Team>>(partialBoard);
+            utils.setQueryData(["team.read", { id: id ?? "" }], (old) => {
+                return zTeam.parse({ ...old, ...newTeam });
+            });
+            //  setBoard((old) => zBoard.parse({ ...old, ...newBoard }));
+        });
 
-        return () => {
-            mySubscription.unsubscribe();
-        };
-    }, []);
+        channelRef.current = channel;
+        if (channel) return () => channel.disconnect();
+    }, [id]);
+
     return (
         <div className="w-full flex flex-col">
             <div className="mx-auto mb-5  text-center font-bold text-5xl">

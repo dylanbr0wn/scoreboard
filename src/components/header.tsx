@@ -1,6 +1,3 @@
-import { supabaseClient } from "@supabase/auth-helpers-nextjs";
-import { User } from "@supabase/supabase-js";
-import { Button } from "@supabase/ui";
 import Link from "next/link";
 import { useRouter } from "next/router";
 

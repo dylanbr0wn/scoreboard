@@ -1,6 +1,7 @@
 
 import * as trpc from "@trpc/server";
 import * as trpcNext from "@trpc/server/adapters/next";
+import { prisma } from "../db/client";
 
 // The app's context - is generated for each incoming request
 export async function createContext(opts?: trpcNext.CreateNextContextOptions) {
@@ -8,11 +9,9 @@ export async function createContext(opts?: trpcNext.CreateNextContextOptions) {
     // Will be available as `ctx` in all your resolvers
 
 
-    return { token: opts?.req.cookies["scoreboard-token"], req: opts?.req };
+    return { token: opts?.req.cookies["scoreboard-token"], req: opts?.req, prisma };
 }
 type Context = trpc.inferAsyncReturnType<typeof createContext>;
 
 // Helper function to create a router with your app's context
-export function createRouter() {
-    return trpc.router<Context>();
-}
+export const createRouter = () => trpc.router<Context>();

@@ -1,5 +1,5 @@
 import { useStopWatch } from "../utils/hooks";
-import { zBoard } from "../utils/types";
+import { zBoard } from "../utils/types/types";
 import z from "zod";
 import * as React from "react";
 import { useStore } from "../utils/store";
@@ -11,7 +11,7 @@ interface TimerProps {
 
 const CustTimer = ({ board }: TimerProps) => {
     const { start, stop } = useStopWatch(
-        board?.timeSurpassed,
+        Number(board?.timeSurpassed),
         board?.lastTimeStateChange
     );
 
@@ -23,7 +23,7 @@ const CustTimer = ({ board }: TimerProps) => {
 
     React.useEffect(() => {
         if (!board?.goalTime) return;
-        setGoal(board?.goalTime);
+        setGoal(Number(board?.goalTime));
     }, [board?.goalTime]);
 
     React.useEffect(() => {

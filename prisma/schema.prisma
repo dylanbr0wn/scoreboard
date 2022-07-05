@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model boards {
+  id                     String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  createdAt              DateTime  @default(dbgenerated("(now() AT TIME ZONE 'utc'::text)")) @db.Timestamptz(6)
+  isOpen                 Boolean   @default(true)
+  name                   String    @default("")
+  goalTime               Int
+  isRunning              Boolean   @default(false)
+  countDown              Boolean   @default(true)
+  initialTimeStateChange DateTime? @db.Timestamptz(6)
+  lastTimeStateChange    DateTime? @db.Timestamptz(6)
+  timeSurpassed          Int
+  userId                 String    @default("")
+  teams                  teams[]
+}
+
+model teams {
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  boardId   String   @db.Uuid
+  name      String   @default("")
+  score     Int
+  logo      String?
+  id        String   @id @unique(map: "teams_iid_key") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  boards    boards   @relation(fields: [boardId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}

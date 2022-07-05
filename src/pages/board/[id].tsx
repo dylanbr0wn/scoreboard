@@ -8,9 +8,10 @@ import Header from "../../components/header";
 import BoardTeam from "../../components/boardTeam";
 import CustTimer from "../../components/timer";
 import Pusher, { Channel } from "pusher-js";
+import superjson from "superjson";
 
-import { Board, zBoard } from "../../utils/types";
-import { trpc } from "../../server/trpc";
+import { Board, zBoard } from "../../utils/types/types";
+import { trpc } from "../../utils/trpc";
 
 const Board: NextPage<{ id: string }> = ({ id }) => {
     const [board, setBoard] = React.useState<Board>();
@@ -36,12 +37,13 @@ const Board: NextPage<{ id: string }> = ({ id }) => {
         const channel = pusher.subscribe(query.id);
         setConnected(true);
 
-        channel.bind(
-            "update",
-            (partialBoard: Partial<z.infer<typeof zBoard>>) => {
-                setBoard((old) => zBoard.parse({ ...old, ...partialBoard }));
-            }
-        );
+        channel.bind("board.update", (partialBoard: any) => {
+            const newBoard =
+                superjson.deserialize<Partial<z.infer<typeof zBoard>>>(
+                    partialBoard
+                );
+            setBoard((old) => zBoard.parse({ ...old, ...newBoard }));
+        });
 
         channelRef.current = channel;
         if (channel) return () => channel.disconnect();

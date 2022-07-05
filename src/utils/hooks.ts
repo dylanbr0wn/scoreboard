@@ -35,7 +35,7 @@ const initTime = Date.now();
 
 
 
-export const useStopWatch = (surpassed: number | undefined, startTime: string | undefined | null) => {
+export const useStopWatch = (surpassed: number | undefined, startTime: Date | undefined | null) => {
     // const [time, setTime] = React.useState(0);
     // const [running, setRunning] = React.useState(false);
     // const [goal, setGoal] = React.useState(1000);

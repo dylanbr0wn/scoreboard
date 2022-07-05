@@ -1,9 +1,10 @@
 import { Pause, Play } from "react-feather";
 import z from "zod";
-import { zBoard } from "../utils/types";
+import { Board, zBoard } from "../utils/types/types";
 import * as React from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { trpc } from "../utils/trpc";
 
 const zTimerInputs = z
     .object({
@@ -30,11 +31,7 @@ const zTimerInputs = z
     })
     .required();
 
-const TimeControl = ({
-    board,
-}: {
-    board: z.infer<typeof zBoard> | undefined | null;
-}) => {
+const TimeControl = ({ board }: { board: Board | undefined | null }) => {
     // const [hours, setHours] = React.useState(0);
     // const [minutes, setMinutes] = React.useState(0);
     // const [seconds, setSeconds] = React.useState(0);
@@ -57,12 +54,56 @@ const TimeControl = ({
         mode: "onChange",
     });
 
-    const onSubmit: SubmitHandler<z.infer<typeof zTimerInputs>> = (data) =>
-        console.log(data);
+    const utils = trpc.useContext();
 
+    const mutation = trpc.useMutation(["board.update"], {
+        onMutate: async (newData) => {
+            if (!board) return;
+            utils.cancelQuery(["board.read", { id: board?.id }]);
+            const previousData = utils.getQueryData([
+                "board.read",
+                { id: board?.id },
+            ]);
+            utils.setQueryData(["board.read", { id: board?.id }], {
+                isOwner: true,
+                board: zBoard.parse({ ...board, ...newData.data }),
+            });
+
+            return { previousData, newData };
+        },
+
+        onError: (err, newData, context) => {
+            if (!board) return;
+            utils.setQueryData(["board.read", { id: board?.id }], {
+                isOwner: true,
+                board: zBoard.parse({
+                    ...context?.previousData,
+                    ...context?.newData,
+                }),
+            });
+            console.log(err);
+        },
+        onSettled: () => {
+            if (!board) return;
+            utils.invalidateQueries(["board.read", { id: board?.id }]);
+        },
+    });
+
+    const onSubmit: SubmitHandler<z.infer<typeof zTimerInputs>> = (data) => {
+        mutation.mutate({
+            id: board?.id ?? "",
+            data: {
+                goalTime:
+                    data.hours * 3600000 +
+                    data.minutes * 60000 +
+                    data.seconds * 1000 +
+                    data.millis,
+            },
+        });
+    };
     React.useEffect(() => {
         if (!board?.goalTime) return;
-        const goalTime = board?.goalTime;
+        const goalTime = Number(board?.goalTime);
         setValue("hours", Math.floor(goalTime / 3600000));
         setValue("minutes", Math.floor((goalTime % 3600000) / 60000));
         setValue("seconds", (goalTime % 60000) / 1000);
@@ -71,7 +112,7 @@ const TimeControl = ({
 
     return (
         <div className="">
-            {board?.goalTime && (
+            {Number(board?.goalTime) !== NaN && (
                 <div className="flex flex-col">
                     <form
                         className="flex space-x-3"

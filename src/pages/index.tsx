@@ -1,14 +1,5 @@
-import {
-    getUser,
-    supabaseClient,
-    User,
-    withPageAuth,
-} from "@supabase/auth-helpers-nextjs";
 import type { GetServerSidePropsContext, NextPage } from "next";
 import Head from "next/head";
-import Image from "next/image";
-import { useQuery } from "react-query";
-import z from "zod";
 import Header from "../components/header";
 import { useRouter } from "next/router";
 import * as React from "react";
@@ -19,30 +10,11 @@ import dayjs from "dayjs";
 import Link from "next/link";
 import Modal from "../components/modal";
 import CustPopover from "../components/popover";
-import { zBoard } from "../utils/types";
-import { trpc } from "../server/trpc";
-
-// export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
-//     const { user } = await getUser(ctx);
-//     if (!user)
-//         return {
-//             redirect: {
-//                 destination: "/login",
-//                 permanent: false,
-//             },
-//         };
-//     const data = await getBoards(user.id);
-
-//     return {
-//         props: {
-//             user,
-//             boards: data,
-//         },
-//     };
-// };
+import { Board, zBoard } from "../utils/types/types";
+import { trpc } from "../utils/trpc";
 
 const Home: NextPage = () => {
-    const [selected, setSelected] = React.useState<z.infer<typeof zBoard>>();
+    const [selected, setSelected] = React.useState<Board>();
     const [open, setOpen] = React.useState(false);
 
     const { data, error, isLoading } = trpc.useQuery(["boards.read"], {
