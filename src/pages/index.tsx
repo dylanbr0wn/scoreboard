@@ -23,16 +23,10 @@ const Home: NextPage = () => {
         },
     });
 
+    const router = useRouter();
+
     return (
         <div className="p-0">
-            <Head>
-                <title>scoreboard</title>
-                <meta
-                    name="description"
-                    content="some kinda board with scores"
-                />
-                <link rel="icon" href="/favicon.ico" />
-            </Head>
             <Header />
             <main className="mt-24 max-w-3xl mx-auto">
                 <div className="flex flex-col w-full">
@@ -40,7 +34,10 @@ const Home: NextPage = () => {
                         My Boards
                     </div>
                     <div className="flex my-3">
-                        <button className="px-4 py-3 flex text-teal-700 bg-teal-100 rounded-lg active:bg-teal-200 duration-300 transition-colors">
+                        <button
+                            onClick={() => router.push("/create")}
+                            className="px-4 py-3 flex text-teal-700 bg-teal-100 rounded-lg active:bg-teal-200 duration-300 transition-colors"
+                        >
                             <Plus className="h-6 w-6 mr-3" />
                             <div>New Board</div>
                         </button>
