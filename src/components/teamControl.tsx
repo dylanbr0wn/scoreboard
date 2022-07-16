@@ -2,23 +2,30 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Minus, Plus } from "react-feather";
 import { SubmitHandler, useForm } from "react-hook-form";
 import z from "zod";
-import { zTeam } from "../utils/types/types";
 import * as React from "react";
-import { useQueryClient } from "react-query";
 import { trpc } from "../utils/trpc";
+import TeamInput from "./TeamDropzone";
 
 const zTeamScore = z
     .object({
         score: z
             .number({ invalid_type_error: "Score must be a number" })
             .min(0),
+        name: z.string(),
     })
     .required();
 
-const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
-    const { data } = trpc.useQuery(["team.read", { id: team?.id ?? "" }]);
-
-    const queryClient = useQueryClient();
+const TeamControl = ({ teamId }: { teamId: string | undefined }) => {
+    const { data, isRefetching } = trpc.useQuery(
+        ["team.read", { id: teamId ?? "" }],
+        {
+            onSuccess: (newData) => {
+                console.log("here");
+                reset({ score: newData.score, name: newData.name });
+            },
+            refetchOnWindowFocus: false,
+        }
+    );
 
     const {
         register,
@@ -33,6 +40,7 @@ const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
         reValidateMode: "onChange",
         defaultValues: {
             score: 0,
+            name: data?.name ?? "",
         },
         mode: "onChange",
     });
@@ -41,8 +49,8 @@ const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
         formData
     ) => {
         await mutation.mutateAsync({
-            id: team?.id ?? "",
-            data: { score: formData.score },
+            id: teamId ?? "",
+            data: { score: formData.score, name: formData.name },
         });
         reset(
             { score: formData.score },
@@ -52,14 +60,38 @@ const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
         );
     };
 
-    React.useEffect(() => {
-        if (!team?.score) return;
-        setValue("score", Number(team.score));
-    }, [team?.score]);
+    // React.useEffect(() => {
+    //     if (!team?.score) return;
+    //     setValue("score", Number(team.score));
+    // }, [team?.score]);
+
+    const utils = trpc.useContext();
 
     const mutation = trpc.useMutation(["team.update"], {
-        onSuccess: (newData) => {
-            queryClient.setQueryData(["sessions", team?.id], newData);
+        onMutate: async (newData) => {
+            if (!data) return;
+            utils.cancelQuery(["team.read", { id: teamId ?? "" }]);
+            const previousData = utils.getQueryData([
+                "team.read",
+                { id: teamId ?? "" },
+            ]);
+            utils.setQueryData(["team.read", { id: teamId ?? "" }], {
+                ...data,
+                ...newData.data,
+            });
+
+            return { previousData, newData };
+        },
+
+        onError: (err, newData, context) => {
+            utils.setQueryData(["team.read", { id: teamId ?? "" }], {
+                ...context?.previousData,
+                ...context?.newData.data,
+            });
+            console.log(err);
+        },
+        onSettled: () => {
+            utils.invalidateQueries(["team.read", { id: teamId ?? "" }]);
         },
     });
 
@@ -70,15 +102,17 @@ const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
                     onSubmit={handleSubmit(onSubmit)}
                     className="flex w-full flex-col space-y-5"
                 >
-                    <div className="flex w-full justify-between">
-                        <div className="flex flex-col space-y-2">
+                    <div className="flex justify-between">
+                        <div className="flex flex-col space-y-2 h-full flex-shrink">
                             <div className="text-sm text-gray-600 font-light">
                                 Team
                             </div>
-                            <div className="flex space-x-3 my-auto h-full">
-                                <div className="text-3xl font-bold my-auto">
-                                    {data?.name}
-                                </div>
+                            <div className=" w-44">
+                                <input
+                                    type="text"
+                                    {...register("name")}
+                                    className="text-3xl w-full font-bold px-3 py-2 my-4 rounded-lg bg-gray-50 hover:bg-gray-100 active:bg-gray-200 transition-all  outline-none ring-0 focus-visible:bg-gray-100"
+                                />
                             </div>
                         </div>
 
@@ -95,8 +129,8 @@ const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
                                         className={`${
                                             errors?.score
                                                 ? "border-red-500"
-                                                : "border-gray-200  focus:border-gray-300"
-                                        } w-24 text-center transition-colors hover:bg-gray-100 bg-gray-50 border focus:bg-gray-100 py-2 px-3  rounded-lg ring-0 outline-none`}
+                                                : ""
+                                        } w-24 text-center transition-colors hover:bg-gray-100 bg-gray-50 focus-visible:bg-gray-100 active:bg-gray-200 py-2 px-3  rounded-lg ring-0 outline-none`}
                                     />
                                 </div>
                                 <div className="flex flex-col space-y-2">
@@ -137,11 +171,17 @@ const TeamControl = ({ team }: { team: z.infer<typeof zTeam> | undefined }) => {
                             </div>
                         </div>
                     </div>
+                    <TeamInput boardId={data?.boardId} team={data} />
                     <div className="h-4 py-auto text-red-500">
                         {errors?.score?.message}
                     </div>
                     <button
-                        disabled={!isDirty || !isValid}
+                        disabled={
+                            !isDirty ||
+                            !isValid ||
+                            isRefetching ||
+                            mutation.isLoading
+                        }
                         className="px-4 mx-auto py-3 disabled:opacity-50 hover:bg-sky-200  flex text-sky-700 bg-sky-100 rounded-lg active:bg-sky-300 duration-300 transition-all "
                         type="submit"
                     >

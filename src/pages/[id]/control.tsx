@@ -82,12 +82,12 @@ const Control: NextPage<{ id: string }> = ({ id }) => {
             {data?.isOwner && (
                 <div className="max-w-3xl mt-24 mx-auto">
                     <div className="flex w-full justify-between divide-gray-200">
-                        <TeamControl team={team1} />
+                        <TeamControl teamId={team1?.id} />
                         <div className="flex flex-col px-5">
                             <div className="h-full border-l border-gray-200" />
                         </div>
 
-                        <TeamControl team={team2} />
+                        <TeamControl teamId={team2?.id} />
                     </div>
                     <div className="flex mt-8 pt-2 border-t border-gray-200 w-full">
                         <div className="flex flex-col space-y-2 w-full">

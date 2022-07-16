@@ -57,5 +57,45 @@ export const boardRouter = createRouter()
 
 
         }
+    }).mutation('create', {
+        input: z.object({
+            data: zBoard.partial().omit({ teams: true }),
+        }),
+        output: zBoard,
+        resolve: async ({ input, ctx }) => {
+
+            if (!ctx.token) throw new Error("No token found");
+            const board = await ctx.prisma.boards.create({
+
+                data: {
+                    goalTime: 90 * 60 * 1000,
+                    timeSurpassed: 0, ...input.data,
+                    teams: {
+                        create: [
+                            {
+                                name: "Team 1",
+                                score: 0
+                            },
+                            {
+                                name: "Team 2",
+                                score: 0
+                            }
+                        ],
+
+
+                    },
+                    userId: ctx.token
+                },
+
+
+                include: {
+                    teams: true
+                }
+            })
+
+            return board
+
+
+        }
     });
 

@@ -141,7 +141,7 @@ const Home: NextPage = () => {
                                     <div className="relative divide-y divide-gray-200 flex flex-col  bg-white p-3 ">
                                         <div className="pb-2">
                                             <Link
-                                                href={`/board/${selected?.id}?size=fullscreen`}
+                                                href={`/${selected?.id}?size=fullscreen`}
                                             >
                                                 <a
                                                     className="flex items-center rounded-lg p-2 transition duration-150 ease-in-out hover:bg-violet-100 
@@ -165,7 +165,7 @@ const Home: NextPage = () => {
                                         </div>
                                         <div className="pt-2">
                                             <Link
-                                                href={`/board/${selected?.id}?size=windowed`}
+                                                href={`/${selected?.id}?size=windowed`}
                                             >
                                                 <a
                                                     className="flex items-center rounded-lg p-2 transition duration-150 ease-in-out hover:bg-violet-100 
@@ -189,7 +189,7 @@ const Home: NextPage = () => {
                                     </div>
                                 </div>
                             </CustPopover>
-                            <Link href={`/control/${selected?.id}`}>
+                            <Link href={`/${selected?.id}/control`}>
                                 <a>
                                     <button className="px-4 py-3 bg-cyan-100 rounded-lg active:bg-cyan-200 text-cyan-800 duration-300 transition-colors">
                                         Open Controls

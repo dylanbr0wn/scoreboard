@@ -5,9 +5,15 @@ import { AppType } from "next/dist/shared/lib/utils";
 import type { AppRouter } from "./api/trpc/[trpc]";
 import superjson from "superjson";
 import "../styles/globals.css";
+import { Toaster } from "react-hot-toast";
 
 const MyApp: AppType = ({ Component, pageProps }) => {
-    return <Component {...pageProps} />;
+    return (
+        <>
+            <Component {...pageProps} />
+            <Toaster />
+        </>
+    );
 };
 
 function getBaseUrl() {
