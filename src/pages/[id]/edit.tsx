@@ -17,76 +17,76 @@ import { Save } from "react-feather";
 import TeamEdit from "../../components/TeamEdit";
 
 enum Templates {
-    Soccer,
+  Soccer,
 }
 
 export const zBoardForm = z.object({
-    team1: zTeam,
-    team2: zTeam,
+  team1: zTeam,
+  team2: zTeam,
 });
 
 const Edit = ({ id }: { id: string }) => {
-    const [template, setTemplate] = React.useState<Templates>();
+  const [template, setTemplate] = React.useState<Templates>();
 
-    const { data } = trpc.useQuery(["board.read", { id }], {
-        onSuccess: (newData) => {
-            // reset({
-            //     team1: newData?.board?.teams?.at(0),
-            //     team2: newData?.board?.teams?.at(1),
-            // });
-        },
-    });
+  const { data } = trpc.useQuery(["board.read", { id }], {
+    onSuccess: (newData) => {
+      // reset({
+      //     team1: newData?.board?.teams?.at(0),
+      //     team2: newData?.board?.teams?.at(1),
+      // });
+    },
+  });
 
-    const onSubmit = (data: z.infer<typeof zBoardForm>) => {
-        console.log(data);
-    };
+  const onSubmit = (data: z.infer<typeof zBoardForm>) => {
+    console.log(data);
+  };
 
-    const {
-        register,
-        handleSubmit,
-        watch,
-        setValue,
-        reset,
-        formState: { errors, isDirty, isValid },
-    } = useForm<z.infer<typeof zBoardForm>>({
-        resolver: zodResolver(zBoardForm),
-        reValidateMode: "onChange",
-        defaultValues: {
-            team1: data?.board?.teams?.at(0),
-            team2: data?.board?.teams?.at(1),
-        },
-        mode: "onChange",
-    });
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors, isDirty, isValid },
+  } = useForm<z.infer<typeof zBoardForm>>({
+    resolver: zodResolver(zBoardForm),
+    reValidateMode: "onChange",
+    defaultValues: {
+      team1: data?.board?.teams?.at(0),
+      team2: data?.board?.teams?.at(1),
+    },
+    mode: "onChange",
+  });
 
-    return (
-        <div className="p-0">
-            <Header />
-            <main className="mt-24 max-w-3xl mx-auto px-2">
-                <h1 className="text-2xl font-bold">Team Details</h1>
-                <button
-                    onClick={handleSubmit(onSubmit)}
-                    className="px-4 py-3 flex text-teal-700 bg-teal-100 rounded-lg active:bg-teal-200 duration-300 transition-colors"
-                >
-                    <Save className="h-6 w-6 mr-3" />
-                    <div>Save Board</div>
-                </button>
-                <div className="flex w-full py-3 justify-evenly">
-                    <TeamEdit register={register} id={id} />
-                </div>
-            </main>
+  return (
+    <div className="p-0">
+      <Header />
+      <main className="mt-24 max-w-3xl mx-auto px-2">
+        <h1 className="text-2xl font-bold">Team Details</h1>
+        <button
+          onClick={handleSubmit(onSubmit)}
+          className="px-4 py-3 flex text-teal-700 bg-teal-100 rounded-lg active:bg-teal-200 duration-300 transition-colors"
+        >
+          <Save className="h-6 w-6 mr-3" />
+          <div>Save Board</div>
+        </button>
+        <div className="flex w-full py-3 justify-evenly">
+          <TeamEdit register={register} id={id} />
         </div>
-    );
+      </main>
+    </div>
+  );
 };
 
 const ControlWrapper = () => {
-    const { query } = useRouter();
-    const { id } = query;
+  const { query } = useRouter();
+  const { id } = query;
 
-    if (!id || typeof id !== "string") {
-        return <div>No ID</div>;
-    }
+  if (!id || typeof id !== "string") {
+    return <div>No ID</div>;
+  }
 
-    return <Edit id={id} />;
+  return <Edit id={id} />;
 };
 
 export default ControlWrapper;

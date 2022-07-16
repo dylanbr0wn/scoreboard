@@ -1,7 +1,7 @@
 # scoreboard
 
-A simple concept pitched to me by a coworker: an easy to use, nice looking, scoreboard.  
-  
+A simple concept pitched to me by a coworker: an easy to use, nice looking, scoreboard.
+
 Current Features:
 
 - Ability to sign up and create your own account.

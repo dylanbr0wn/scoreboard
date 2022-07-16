@@ -1,4 +1,4 @@
 declare global {
-    var prisma: PrismaClient;
+  var prisma: PrismaClient;
 }
-export { };
+export {};
